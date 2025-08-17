@@ -1,0 +1,69 @@
+version: "3.8"
+
+services:
+  n8n:
+    build: .
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres.railway.internal
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=railway
+      - DB_POSTGRESDB_USER=railway
+      - DB_POSTGRESDB_PASSWORD=RS7s5!WExAt6xGo3vCkzveeBjndEkaq7
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=admin
+      - N8N_PORT=5678
+      - N8N_HOST=n8n.local
+      - WEBHOOK_URL=https://n8n.local/
+      - GENERIC_TIMEZONE=Asia/Dubai
+    depends_on:
+      - redis
+    volumes:
+      - ./n8n_data:/home/node/.n8n
+
+  redis:
+    image: redis:6
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  queue-worker:
+    build: .
+    container_name: n8n-worker
+    restart: unless-stopped
+    depends_on:
+      - redis
+    environment:
+      - EXECUTIONS_PROCESS=main
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres.railway.internal
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=railway
+      - DB_POSTGRESDB_USER=railway
+      - DB_POSTGRESDB_PASSWORD=RS7s5!WExAt6xGo3vCkzveeBjndEkaq7
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+    volumes:
+      - ./n8n_data:/home/node/.n8n
+
+  traefik:
+    image: traefik:v2.5
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
